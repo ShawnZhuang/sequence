@@ -1,11 +1,24 @@
 import numpy as np
+import torch as t
+
+
+def coef(x, x2, mask):
+    return 1
+
+def cal_property():
+
 
 def predict(seq_pad: np.ndarray, n_valid: int):
     # todo: add prediction model here
+    # naive predict
     seq_pad[n_valid]=seq_pad[n_valid-1]
+
     return seq_pad
 
 def process(seq: np.ndarray, n_pred):   
+    """
+    
+    """
     n_prefill=seq.shape[-1]
     x_mean=np.mean(seq,-1)
     # pre process
