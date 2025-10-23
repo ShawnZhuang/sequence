@@ -2,7 +2,7 @@ import numpy as np
 from typing import List, Dict, Any
 
 class StockInvestmentPlanner:
-    def __init__(self, transaction_cost=0.001, max_position_ratio=0.8):
+    def __init__(self, transaction_cost=0.001, max_position_ratio=0.8,max_action_size=10):
         """
         初始化投资规划器
         
@@ -12,6 +12,7 @@ class StockInvestmentPlanner:
         """
         self.transaction_cost = transaction_cost
         self.max_position_ratio = max_position_ratio
+        self.max_action_size= max_action_size
     
     def calculate_investment_plan(self, prices: List[float], 
                                 current_shares: int, 
@@ -26,74 +27,69 @@ class StockInvestmentPlanner:
             
         Returns:
             交易量列表，正数表示买入，负数表示卖出，0表示不交易
+
+        状态: 每天的持仓量
+        动作: 买入、卖出或持有一定数量的股票
+        转移: 根据当前价格和交易成本更新现金和持仓
+        奖励: 最终投资组合的总价值     
+        dp[day][shares] = 最大组合价值
+        for action in possible_actions:
+            new_shares = shares + action
+            new_cash = current_cash - action * prices[day] - transaction_costs
+            dp[day+1][new_shares] = max(dp[day+1][new_shares], new_cash + new_shares * prices[day+1])
+            prev[day+1][new_shares] = (shares, action)
         """
         days = len(prices)
         if days == 0:
             raise ValueError("价格序列不能为空")
-        
-        # 计算最大可能持仓量
-        max_possible_shares = self._calculate_realistic_max_shares(
-            current_shares, remaining_cash, min(prices)
-        )
-        
-        print(f"动态规划状态空间: {days}天 × {max_possible_shares}种持仓状态")
-        
-        # 动态规划表: dp[day][shares] = 最大组合价值
-        dp = np.full((days, max_possible_shares), -np.inf)
+
+        dp = [dict() for _ in range(days)]
         # 路径记录: prev[day][shares] = (前一天股份, 交易量)
-        prev = np.full((days, max_possible_shares, 2), -1, dtype=int)
-        
+        # prev = np.full((days, max_possible_shares, 2), -1, dtype=int)
         # 初始化第0天
-        initial_value = remaining_cash + current_shares * prices[0]
-        if current_shares < max_possible_shares:
-            dp[0][current_shares] = initial_value
+        dp[0][current_shares] = remaining_cash
         
         # 动态规划
         for day in range(days - 1):
-            for shares in range(max_possible_shares):
-                if dp[day][shares] == -np.inf:
-                    continue
-                
-                current_cash = dp[day][shares] - shares * prices[day]
-                if current_cash < 0:
-                    continue
-                
-                # 计算最大可买入股数
-                max_buy = int(current_cash * self.max_position_ratio / (prices[day] * (1 + self.transaction_cost)))
-                max_buy = min(max_buy, max_possible_shares - shares - 1)
-                
-                # 考虑交易决策：卖出所有到最大买入
-                for trade in range(-shares, max_buy + 1):
+            for shares, cash in dp[day].items():          
+                next_actions=self.calculate_action_range(shares,cash,prices[day+1])
+                for trade in next_actions:
+                    transaction_cost_amount= abs(trade) * prices[day] * self.transaction_cost
                     if trade == 0:  # 不交易
                         new_shares = shares
                         cost = 0
-                        new_cash = current_cash
+                        new_cash = cash
                     else:
-                        new_shares = shares + trade
-                        transaction_cost_amount = abs(trade) * prices[day] * self.transaction_cost
-                        
+                        new_shares = shares + trade                        
                         if trade > 0:  # 买入
                             cost = trade * prices[day] + transaction_cost_amount
-                            if cost > current_cash:
+                            if cost > cash:
                                 continue
-                            new_cash = current_cash - cost
+                            new_cash = cash - cost
                         else:  # 卖出
-                            revenue = -trade * prices[day] - transaction_cost_amount
-                            new_cash = current_cash + revenue
+                            new_cash = cash + trade * prices[day] - transaction_cost_amount
                     
-                    if new_shares < 0 or new_shares >= max_possible_shares:
-                        continue
                     
                     # 计算新状态的价值
-                    total_value = new_cash + new_shares * prices[day + 1]
+                    # total_value = new_cash + new_shares * prices[day + 1]
                     
-                    if total_value > dp[day + 1][new_shares]:
-                        dp[day + 1][new_shares] = total_value
-                        prev[day + 1][new_shares] = [shares, trade]  # 记录前继状态
+                    if new_cash > dp[day + 1].get(new_shares,0):
+                        dp[day + 1][new_shares] = new_cash
+                        # prev[day + 1][new_shares] = [shares, trade]  # 记录前继状态
         
         # 重建最佳路径，返回交易量列表
-        return self._rebuild_trades(prices, dp, prev, current_shares, max_possible_shares)
+
+        return dp[days - 1]
+        # return self._rebuild_trades(prices, dp, prev, current_shares, max_possible_shares)
     
+    def calculate_action_range(self, current_shares: int, cash: float, price: float) -> List[int]:
+        """计算当前状态下的可行动作范围"""
+        max_buy = int(cash  / (price * (1 + self.transaction_cost)))
+        min_sell = -current_shares
+        step= (max_buy-min_sell+ self.max_action_size-1)// self.max_action_size
+        # print(f"计算可行动作范围: 当前持仓={current_shares}, 现金={cash:.2f}, 价格={price:.2f}, 最大买入={max_buy}, 最小卖出={min_sell}, 步长={step}")
+        return list(range(min_sell, max_buy + 1,step))
+
     def _calculate_realistic_max_shares(self, current_shares: int, cash: float, min_price: float) -> int:
         """计算实际可能的最大持仓量"""
         max_shares_from_cash = int(cash / (min_price * (1 + self.transaction_cost)))
