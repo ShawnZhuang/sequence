@@ -25,8 +25,8 @@ def test_act():
     days = 10
     prices = [100]
     for i in range(days - 1):
-        change = np.random.normal(0, 2)
-        prices.append(max(prices[-1] + change, 50))
+        change = np.random.normal(-5, 5)
+        prices.append(max(prices[0] + change, 50))
 
     initial_shares = 100
     initial_cash = 10000
@@ -40,22 +40,24 @@ def test_act():
 
     # 计算最佳交易序列
     planner = StockInvestmentPlanner()
-    trades = planner.calculate_investment_plan(prices, initial_shares, initial_cash)
+    
+    max_profit, trades = planner.calculate_investment_plan(prices, initial_shares, initial_cash)
+    print(max_profit)
     print(trades)
 
-#     # 打印交易序列
-#     InvestmentPlanPrinter.print_trades(trades)
+    #     # 打印交易序列
+    # InvestmentPlanPrinter.print_trades(trades)
 
-#     # 计算每日计划
-#     daily_plan = calculate_daily_plan(prices, trades, initial_shares, initial_cash)
+    #     # 计算每日计划
+    daily_plan = calculate_daily_plan(prices, trades, initial_shares, initial_cash)
 
-#     # 打印每日计划
-#     InvestmentPlanPrinter.print_daily_plan(daily_plan)
+    # 打印每日计划
+    InvestmentPlanPrinter.print_daily_plan(daily_plan)
 
-#     # 打印总结
-#     InvestmentPlanPrinter.print_summary(
-#         daily_plan, initial_cash, initial_shares, prices[0]
-#     )
+    # 打印总结
+    InvestmentPlanPrinter.print_summary(
+        daily_plan, initial_cash, initial_shares, prices[0]
+    )
 
 
 if __name__ == "__main__":

@@ -2,3 +2,4 @@
 # lib-pybroker==0.12.0
 torch
 onnx
+pytest

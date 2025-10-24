@@ -1,6 +1,7 @@
 import numpy as np
 from typing import List, Dict, Any
 
+# TODO: 用cpp 实现
 class StockInvestmentPlanner:
     def __init__(self, transaction_cost=0.001, max_position_ratio=0.8,max_action_size=10):
         """
@@ -8,10 +9,8 @@ class StockInvestmentPlanner:
         
         Args:
             transaction_cost: 交易成本率
-            max_position_ratio: 最大持仓比例
         """
         self.transaction_cost = transaction_cost
-        self.max_position_ratio = max_position_ratio
         self.max_action_size= max_action_size
     
     def calculate_investment_plan(self, prices: List[float], 
@@ -47,12 +46,14 @@ class StockInvestmentPlanner:
         # 路径记录: prev[day][shares] = (前一天股份, 交易量)
         # prev = np.full((days, max_possible_shares, 2), -1, dtype=int)
         # 初始化第0天
+        prev = [dict() for _ in range(days)]        
+        
         dp[0][current_shares] = remaining_cash
         
         # 动态规划
         for day in range(days - 1):
             for shares, cash in dp[day].items():          
-                next_actions=self.calculate_action_range(shares,cash,prices[day+1])
+                next_actions=self.calculate_action_range(shares,cash,prices[day])            
                 for trade in next_actions:
                     transaction_cost_amount= abs(trade) * prices[day] * self.transaction_cost
                     if trade == 0:  # 不交易
@@ -60,29 +61,30 @@ class StockInvestmentPlanner:
                         cost = 0
                         new_cash = cash
                     else:
-                        new_shares = shares + trade                        
-                        if trade > 0:  # 买入
-                            cost = trade * prices[day] + transaction_cost_amount
-                            if cost > cash:
-                                continue
-                            new_cash = cash - cost
-                        else:  # 卖出
-                            new_cash = cash + trade * prices[day] - transaction_cost_amount
-                    
-                    
-                    # 计算新状态的价值
-                    # total_value = new_cash + new_shares * prices[day + 1]
-                    
+                        new_shares = shares + trade  
+                        new_cash = cash - trade * prices[day] - transaction_cost_amount
+                        if new_cash < 0:
+                            continue  # 不允许卖出超过持仓量                    
                     if new_cash > dp[day + 1].get(new_shares,0):
+                        # print(f"day:{day} {shares} {cash:.2f} -> trade:{trade} -> {new_shares} {new_cash:.2f}")                        
                         dp[day + 1][new_shares] = new_cash
-                        # prev[day + 1][new_shares] = [shares, trade]  # 记录前继状态
-        
+                        prev[day + 1][new_shares] = shares  # 记录前继状态
+            print("{}:{}".format(day,dp[day]))
+            #  todo: TOP  k
+            
         # 重建最佳路径，返回交易量列表
-        print(dp[days - 1].items())
+        # print(dp[days - 1].items())
         max_profit = max( dp[days - 1].items(), key=lambda t: t[0]*prices[days-1]+t[1])
         print("max_profit:",max_profit[0]*prices[days-1]+max_profit[1])
-
-        return max_profit
+        
+        trade_trace=[0 for _ in range(days)]
+        current_shares=max_profit[0]
+        for day in range(days - 1, 0, -1):
+            prev_shares= prev[day][current_shares]
+            trade_trace[day-1]=current_shares - prev_shares
+            current_shares= prev_shares            
+        
+        return max_profit,trade_trace
         # return self._rebuild_trades(prices, dp, prev, current_shares, max_possible_shares)
     
     def calculate_action_range(self, current_shares: int, cash: float, price: float) -> List[int]:
@@ -91,39 +93,45 @@ class StockInvestmentPlanner:
         min_sell = -current_shares
         step= (max_buy-min_sell+ self.max_action_size-1)// self.max_action_size
         # print(f"计算可行动作范围: 当前持仓={current_shares}, 现金={cash:.2f}, 价格={price:.2f}, 最大买入={max_buy}, 最小卖出={min_sell}, 步长={step}")
-        return list(range(min_sell, max_buy + 1,step))
+        step_sell= (abs(min_sell)+self.max_action_size-1) // self.max_action_size
+        step_buy = (max_buy+self.max_action_size-1 )// self.max_action_size
+        if step_sell==0:
+            step_sell=1
+        if step_buy==0:
+            step_buy=1
+        return list(range(min_sell, 0,step_sell))+ list(range(0, max_buy + 1, step_buy))
 
-    def _calculate_realistic_max_shares(self, current_shares: int, cash: float, min_price: float) -> int:
-        """计算实际可能的最大持仓量"""
-        max_shares_from_cash = int(cash / (min_price * (1 + self.transaction_cost)))
-        max_shares = current_shares + max_shares_from_cash + 20
-        return min(max_shares, 2000)
+    # def _calculate_realistic_max_shares(self, current_shares: int, cash: float, min_price: float) -> int:
+    #     """计算实际可能的最大持仓量"""
+    #     max_shares_from_cash = int(cash / (min_price * (1 + self.transaction_cost)))
+    #     max_shares = current_shares + max_shares_from_cash + 20
+    #     return min(max_shares, 2000)
     
-    def _rebuild_trades(self, prices: List[float], dp: np.ndarray, 
-                       prev: np.ndarray, initial_shares: int,
-                       max_shares: int) -> List[int]:
-        """重建最佳交易序列"""
-        days = len(prices)
+    # def _rebuild_trades(self, prices: List[float], dp: np.ndarray, 
+    #                    prev: np.ndarray, initial_shares: int,
+    #                    max_shares: int) -> List[int]:
+    #     """重建最佳交易序列"""
+    #     days = len(prices)
         
-        # 找到最佳最终状态
-        best_value = -np.inf
-        best_shares = 0
-        for shares in range(max_shares):
-            if dp[days - 1][shares] > best_value:
-                best_value = dp[days - 1][shares]
-                best_shares = shares
+    #     # 找到最佳最终状态
+    #     best_value = -np.inf
+    #     best_shares = 0
+    #     for shares in range(max_shares):
+    #         if dp[days - 1][shares] > best_value:
+    #             best_value = dp[days - 1][shares]
+    #             best_shares = shares
         
-        # 从最终状态向前重建路径，获取交易序列
-        trades = [0] * days  # 初始化所有天数为不交易
-        current_shares = best_shares
+    #     # 从最终状态向前重建路径，获取交易序列
+    #     trades = [0] * days  # 初始化所有天数为不交易
+    #     current_shares = best_shares
         
-        for day in range(days - 1, 0, -1):
-            prev_shares, trade = prev[day][current_shares]
-            if prev_shares != -1:
-                trades[day - 1] = trade  # 交易发生在day-1天
-                current_shares = prev_shares
+    #     for day in range(days - 1, 0, -1):
+    #         prev_shares, trade = prev[day][current_shares]
+    #         if prev_shares != -1:
+    #             trades[day - 1] = trade  # 交易发生在day-1天
+    #             current_shares = prev_shares
         
-        return trades
+    #     return trades
 
 
 def calculate_daily_plan(prices: List[float], 
