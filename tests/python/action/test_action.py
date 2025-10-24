@@ -36,6 +36,7 @@ def test_act():
         print(f"第{i:2d}天: {price:.2f}")
 
     print(f"\n初始状态: 持仓{initial_shares}股, 现金{initial_cash:.2f}")
+    print("初始资产:",initial_shares*prices[0]+initial_cash)
 
     # 计算最佳交易序列
     planner = StockInvestmentPlanner()

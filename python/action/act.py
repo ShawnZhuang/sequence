@@ -78,8 +78,11 @@ class StockInvestmentPlanner:
                         # prev[day + 1][new_shares] = [shares, trade]  # 记录前继状态
         
         # 重建最佳路径，返回交易量列表
+        print(dp[days - 1].items())
+        max_profit = max( dp[days - 1].items(), key=lambda t: t[0]*prices[days-1]+t[1])
+        print("max_profit:",max_profit[0]*prices[days-1]+max_profit[1])
 
-        return dp[days - 1]
+        return max_profit
         # return self._rebuild_trades(prices, dp, prev, current_shares, max_possible_shares)
     
     def calculate_action_range(self, current_shares: int, cash: float, price: float) -> List[int]:
