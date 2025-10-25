@@ -230,3 +230,5 @@ colors
 .DS_Store
 /data
 /tests/data
+akshare_cache/
+.csv
